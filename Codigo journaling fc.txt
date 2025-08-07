@@ -1,9 +1,0 @@
-const firebaseConfig = {
-  apiKey: "AIzaSyDwbpN2FWpSrk91QXjKE0483qIfcL4T-fk",
-  authDomain: "diario-de-tradig.firebaseapp.com",
-  projectId: "diario-de-tradig",
-  storageBucket: "diario-de-tradig.firebasestorage.app",
-  messagingSenderId: "190986085980",
-  appId: "1:190986085980:web:ac00b98e9e3f5da3bc2899",
-  measurementId: "G-7SD6M9NYBZ"
-};
