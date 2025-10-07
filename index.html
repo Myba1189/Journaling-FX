@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -152,8 +152,6 @@
                 </section>
             </div>
 
-            <!-- Projection View (removed) -->
-
             <!-- Calendar View -->
             <div id="view-calendar" class="hidden">
                  <header class="mb-8"><h2 class="text-3xl font-bold text-slate-900">Calendario de Batalla</h2><p class="text-slate-500 mt-1">Tu rendimiento diario de un solo vistazo. Verde es victoria, rojo es lección.</p></header>
@@ -273,10 +271,11 @@
 
     let charts = {};
 
-    const views = { dashboard: document.getElementById('view-dashboard'), analysis: document.getElementById('view-analysis'), projection: document.getElementById('view-projection'), calendar: document.getElementById('view-calendar'), plan: document.getElementById('view-plan'), review: document.getElementById('view-review'), archive: document.getElementById('view-archive') };
-    const navLinks = { dashboard: document.getElementById('nav-dashboard'), analysis: document.getElementById('nav-analysis'), projection: document.getElementById('nav-projection'), calendar: document.getElementById('nav-calendar'), plan: document.getElementById('nav-plan'), review: document.getElementById('nav-review'), archive: document.getElementById('nav-archive') };
+    const views = { dashboard: document.getElementById('view-dashboard'), analysis: document.getElementById('view-analysis'), calendar: document.getElementById('view-calendar'), plan: document.getElementById('view-plan'), review: document.getElementById('view-review'), archive: document.getElementById('view-archive') };
+    const navLinks = { dashboard: document.getElementById('nav-dashboard'), analysis: document.getElementById('nav-analysis'), calendar: document.getElementById('nav-calendar'), plan: document.getElementById('nav-plan'), review: document.getElementById('nav-review'), archive: document.getElementById('nav-archive') };
     const tradeModal = document.getElementById('trade-modal');
     const addTradeBtn = document.getElementById('add-trade-btn');
+    const cancelTradeBtn = document.getElementById('cancel-trade-btn');
     const logoutBtn = document.getElementById('logout-btn');
     const tradeForm = document.getElementById('trade-form');
     const tradeLogBody = document.getElementById('trade-log-body');
@@ -290,8 +289,6 @@
     const passwordInput = document.getElementById('password');
     const manifestoContent = document.getElementById('manifesto-content');
     const saveManifestoBtn = document.getElementById('save-manifesto-btn');
-    const projectionSlider = document.getElementById('projection-slider');
-    const projectionTradesLabel = document.getElementById('projection-trades-label');
     const calendarGrid = document.getElementById('calendar-grid');
     const calendarMonthYear = document.getElementById('calendar-month-year');
     const prevMonthBtn = document.getElementById('prev-month-btn');
@@ -312,8 +309,8 @@
     const saveWarReportBtn = document.getElementById('save-war-report-btn');
     
     function switchView(viewName) {
-        Object.values(views).forEach(v => v.classList.add('hidden'));
-        Object.values(navLinks).forEach(l => l.classList.remove('active'));
+        Object.values(views).forEach(v => { if(v) v.classList.add('hidden')});
+        Object.values(navLinks).forEach(l => { if(l) l.classList.remove('active')});
         if(views[viewName]) {
             views[viewName].classList.remove('hidden');
             navLinks[viewName].classList.add('active');
@@ -322,7 +319,7 @@
     }
 
     Object.keys(navLinks).forEach(key => {
-        navLinks[key].addEventListener('click', () => switchView(key));
+        if(navLinks[key]) navLinks[key].addEventListener('click', () => switchView(key));
     });
 
     document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -335,21 +332,77 @@
     });
 
     function openTradeModal(trade = null) {
-        // ... (modal opening logic)
+        tradeForm.reset();
+        document.getElementById('trade-id').value = '';
+        
+        if (trade) {
+            document.getElementById('modal-title').textContent = 'Editar Operación';
+             document.getElementById('trade-id').value = trade.id;
+            document.getElementById('trade-date').value = trade.date;
+            document.getElementById('trade-start-time').value = trade.startTime;
+            document.getElementById('trade-end-time').value = trade.endTime;
+            document.getElementById('trade-pair').value = trade.pair;
+            document.getElementById('trade-direction').value = trade.direction;
+            document.getElementById('trade-setup').value = trade.setup;
+            document.getElementById('trade-risk').value = trade.risk;
+            document.getElementById('trade-result').value = trade.result;
+            document.getElementById('trade-sl-pips').value = trade.slPips;
+            document.getElementById('trade-tp-pips').value = trade.tpPips;
+            document.getElementById('trade-discipline').value = trade.discipline;
+            document.getElementById('trade-screenshot').value = trade.screenshotUrl;
+        } else {
+            document.getElementById('modal-title').textContent = 'Añadir Nueva Operación';
+            document.getElementById('trade-date').valueAsDate = new Date();
+        }
+        
+        updateTradeDuration();
+        tradeModal.classList.add('open');
     }
 
     addTradeBtn.addEventListener('click', () => openTradeModal());
+    cancelTradeBtn.addEventListener('click', () => tradeModal.classList.remove('open'));
     
     function calculateKPIs(tradesToAnalyze) {
-        // ... (KPI calculation logic, now accepts tradesToAnalyze)
+        if (!tradesToAnalyze || tradesToAnalyze.length === 0) return { netPnl: 0, profitFactor: 0, winRate: 0, totalTrades: 0, avgRR: 0, expectancy: 0, currentBalance: initialBalance, maxDrawdown: 0, avgTpPips: 0, avgSlPips: 0 };
+
+        const netPnl = tradesToAnalyze.reduce((sum, t) => sum + t.result, 0);
+        const winningTrades = tradesToAnalyze.filter(t => t.result > 0);
+        const losingTrades = tradesToAnalyze.filter(t => t.result < 0);
+        const grossProfit = winningTrades.reduce((sum, t) => sum + t.result, 0);
+        const grossLoss = Math.abs(losingTrades.reduce((sum, t) => sum + t.result, 0));
+        const profitFactor = grossLoss > 0 ? (grossProfit / grossLoss) : Infinity;
+        const winRate = (winningTrades.length / tradesToAnalyze.length) * 100;
+        const avgWin = winningTrades.length > 0 ? grossProfit / winningTrades.length : 0;
+        const avgLoss = losingTrades.length > 0 ? grossLoss / losingTrades.length : 0;
+        const expectancy = (winRate / 100 * avgWin) - ((100 - winRate) / 100 * avgLoss);
+        const totalR = tradesToAnalyze.reduce((sum, t) => sum + (t.risk !== 0 ? t.result / t.risk : 0), 0);
+        const avgRR = tradesToAnalyze.length > 0 ? totalR / tradesToAnalyze.length : 0;
+
+        const totalTpPips = winningTrades.reduce((sum, t) => sum + (t.tpPips || 0), 0);
+        const totalSlPips = losingTrades.reduce((sum, t) => sum + (t.slPips || 0), 0);
+        const avgTpPips = winningTrades.length > 0 ? totalTpPips / winningTrades.length : 0;
+        const avgSlPips = losingTrades.length > 0 ? totalSlPips / losingTrades.length : 0;
+        
+        const currentBalance = initialBalance + allTrades.reduce((sum, t) => sum + t.result, 0);
+        let peak = initialBalance;
+        let maxDrawdown = 0;
+        let balanceIterator = initialBalance;
+        allTrades.forEach(trade => {
+            balanceIterator += trade.result;
+            peak = Math.max(peak, balanceIterator);
+            const drawdown = peak - balanceIterator;
+            maxDrawdown = Math.max(maxDrawdown, drawdown);
+        });
+        
+        return { netPnl, profitFactor, winRate, totalTrades: tradesToAnalyze.length, avgRR, expectancy, currentBalance, maxDrawdown, avgTpPips, avgSlPips };
     }
 
     function updateUI() {
         const now = new Date();
         if (currentFilter === 'monthly') {
             filteredTrades = allTrades.filter(t => {
-                const tradeDate = new Date(t.date + 'T' + (t.startTime || '00:00:00'));
-                return tradeDate.getMonth() === now.getMonth() && tradeDate.getFullYear() === now.getFullYear();
+                const tradeDate = new Date(t.date + 'T00:00:00');
+                return tradeDate.getUTCMonth() === now.getUTCMonth() && tradeDate.getUTCFullYear() === now.getUTCFullYear();
             });
         } else {
             filteredTrades = allTrades;
@@ -359,13 +412,7 @@
         // ... (update all KPI elements on the page)
 
         renderTradeLog(filteredTrades);
-        
-        if (!views.dashboard.classList.contains('hidden')) renderDashboardCharts(filteredTrades);
-        if (!views.analysis.classList.contains('hidden')) renderAnalysisCharts(filteredTrades);
-        if (views.projection && !views.projection.classList.contains('hidden')) renderProjectionChart();
-        if (!views.calendar.classList.contains('hidden')) renderCalendar();
-        if (views.archive && !views.archive.classList.contains('hidden')) renderArchive();
-        
+        renderCalendar();
         updatePairDatalist();
     }
     
@@ -394,34 +441,6 @@
         // ... (calendar rendering logic)
     }
 
-    function renderProjectionChart() {
-        if(!views.projection) return;
-        const historicalKPIs = calculateKPIs(allTrades);
-        if (!historicalKPIs || historicalKPIs.expectancy <= 0) return;
-
-        const numTrades = parseInt(projectionSlider.value);
-        projectionTradesLabel.textContent = numTrades;
-
-        let projectedBalance = historicalKPIs.currentBalance;
-        const projectionData = Array.from({length: numTrades}, () => projectedBalance += historicalKPIs.expectancy);
-
-        createOrUpdateChart('projection-chart', 'line', {
-            labels: Array.from({length: numTrades}, (_, i) => `Op ${i + 1}`),
-            datasets: [{
-                label: 'Proyección de Balance ($)',
-                data: [historicalKPIs.currentBalance, ...projectionData],
-                borderColor: '#0ea5e9',
-                backgroundColor: 'rgba(14, 165, 233, 0.1)',
-                fill: true,
-                tension: 0.1
-            }]
-        }, { responsive: true, maintainAspectRatio: false });
-    }
-
-    if(projectionSlider) {
-        projectionSlider.addEventListener('input', renderProjectionChart);
-    }
-
     // ... (tradeForm submission logic)
 
     async function saveManifesto() {
@@ -443,7 +462,7 @@
         
         const userDocRef = doc(db, 'users', userId);
         const tradesCollectionRef = collection(userDocRef, 'trades');
-        const q = query(tradesCollectionRef);
+        const qTrades = query(tradesCollectionRef, orderBy("date", "desc"));
 
         getDoc(userDocRef).then(docSnap => {
             if (docSnap.exists()) {
@@ -463,7 +482,7 @@
             }
             initialBalanceInput.value = initialBalance;
 
-            unsubscribeTrades = onSnapshot(q, (snapshot) => {
+            unsubscribeTrades = onSnapshot(qTrades, (snapshot) => {
                 allTrades = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 updateAll();
             });
