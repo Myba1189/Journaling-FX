@@ -1,4 +1,3 @@
-
 <html lang="es">
 <head>
     <meta charset="UTF-8">
@@ -337,7 +336,7 @@
         
         if (trade) {
             document.getElementById('modal-title').textContent = 'Editar Operación';
-             document.getElementById('trade-id').value = trade.id;
+            document.getElementById('trade-id').value = trade.id;
             document.getElementById('trade-date').value = trade.date;
             document.getElementById('trade-start-time').value = trade.startTime;
             document.getElementById('trade-end-time').value = trade.endTime;
@@ -357,6 +356,23 @@
         
         updateTradeDuration();
         tradeModal.classList.add('open');
+    }
+    
+    function updateTradeDuration() {
+        const start = tradeStartTimeInput.value;
+        const end = tradeEndTimeInput.value;
+        if (start && end) {
+            const startDate = new Date(`1970-01-01T${start}`);
+            const endDate = new Date(`1970-01-01T${end}`);
+            let diff = (endDate - startDate) / 1000 / 60; // difference in minutes
+            if (diff < 0) diff += 24 * 60; // Handle overnight trades
+            
+            const hours = Math.floor(diff / 60);
+            const minutes = Math.round(diff % 60);
+            tradeDurationInput.value = `${hours}h ${minutes}m`;
+        } else {
+            tradeDurationInput.value = '';
+        }
     }
 
     addTradeBtn.addEventListener('click', () => openTradeModal());
@@ -378,8 +394,8 @@
         const totalR = tradesToAnalyze.reduce((sum, t) => sum + (t.risk !== 0 ? t.result / t.risk : 0), 0);
         const avgRR = tradesToAnalyze.length > 0 ? totalR / tradesToAnalyze.length : 0;
 
-        const totalTpPips = winningTrades.reduce((sum, t) => sum + (t.tpPips || 0), 0);
-        const totalSlPips = losingTrades.reduce((sum, t) => sum + (t.slPips || 0), 0);
+        const totalTpPips = winningTrades.reduce((sum, t) => sum + (parseFloat(t.tpPips) || 0), 0);
+        const totalSlPips = losingTrades.reduce((sum, t) => sum + (parseFloat(t.slPips) || 0), 0);
         const avgTpPips = winningTrades.length > 0 ? totalTpPips / winningTrades.length : 0;
         const avgSlPips = losingTrades.length > 0 ? totalSlPips / losingTrades.length : 0;
         
@@ -409,7 +425,19 @@
         }
 
         const kpis = calculateKPIs(filteredTrades);
-        // ... (update all KPI elements on the page)
+
+        document.getElementById('kpi-profit-factor').textContent = isFinite(kpis.profitFactor) ? kpis.profitFactor.toFixed(2) : '∞';
+        document.getElementById('kpi-win-rate').textContent = `${kpis.winRate.toFixed(1)}%`;
+        document.getElementById('kpi-avg-rr').textContent = `${kpis.avgRR.toFixed(2)}R`;
+        document.getElementById('kpi-expectancy').textContent = `$${kpis.expectancy.toFixed(2)}`;
+        
+        document.getElementById('status-initial-balance').textContent = `$${initialBalance.toLocaleString()}`;
+        document.getElementById('kpi-current-balance').textContent = `$${kpis.currentBalance.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+        document.getElementById('status-max-loss-limit').textContent = `-$${(initialBalance * 0.1).toLocaleString()}`;
+        document.getElementById('status-current-drawdown').textContent = `-$${kpis.maxDrawdown.toFixed(2)}`;
+
+        document.getElementById('kpi-avg-tp').textContent = kpis.avgTpPips.toFixed(1);
+        document.getElementById('kpi-avg-sl').textContent = kpis.avgSlPips.toFixed(1);
 
         renderTradeLog(filteredTrades);
         renderCalendar();
@@ -424,24 +452,71 @@
     }
 
     function renderTradeLog(tradesToRender) {
-        // ... (trade log rendering logic)
-    }
-    
-    // ... (deleteTrade, showGenericModal, closeModal functions)
-
-    function renderDashboardCharts(tradesToAnalyze) {
-        // ... (logic for equity curve and discipline charts)
-    }
-
-    function renderAnalysisCharts(tradesToAnalyze) {
-        // ... (logic for analysis charts: direction, session, instrument)
+        tradeLogBody.innerHTML = '';
+        if (tradesToRender.length === 0) {
+            tradeLogBody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-500">No hay operaciones registradas para este período.</td></tr>`;
+            return;
+        }
+        const sortedTrades = [...tradesToRender].sort((a,b) => new Date(b.date) - new Date(a.date));
+        sortedTrades.forEach(trade => {
+            const row = document.createElement('tr');
+            row.className = 'bg-white border-b';
+            row.dataset.id = trade.id;
+            row.innerHTML = `
+                <td class="px-6 py-4">${trade.date}</td>
+                <td class="px-6 py-4 font-medium text-slate-900">${trade.pair}</td>
+                <td class="px-6 py-4">${trade.duration || 'N/A'}</td>
+                <td class="px-6 py-4 font-medium ${trade.result > 0 ? 'text-green-600' : 'text-red-600'}">$${trade.result.toFixed(2)}</td>
+                <td class="px-6 py-4">
+                    <div class="flex items-center space-x-3">
+                        <button data-action="edit" title="Editar"><svg class="h-5 w-5 text-blue-500 hover:text-blue-800" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg></button>
+                        <button data-action="delete" title="Eliminar"><svg class="h-5 w-5 text-red-500 hover:text-red-800" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" /></svg></button>
+                    </div>
+                </td>
+            `;
+            tradeLogBody.appendChild(row);
+        });
     }
     
     function renderCalendar() {
-        // ... (calendar rendering logic)
+        const month = currentDate.getUTCMonth();
+        const year = currentDate.getUTCFullYear();
+        calendarMonthYear.textContent = `${currentDate.toLocaleString('es-ES', { month: 'long', timeZone: 'UTC' })} ${year}`;
+        calendarGrid.innerHTML = '';
+        const firstDayOfMonth = (new Date(year, month, 1)).getUTCDay();
+        const daysInMonth = new Date(year, month + 1, 0).getUTCDate();
+        const dailyTotals = allTrades.reduce((acc, trade) => {
+            const tradeDate = new Date(trade.date + 'T00:00:00');
+            if (tradeDate.getUTCFullYear() === year && tradeDate.getUTCMonth() === month) {
+                const day = tradeDate.getUTCDate();
+                if (!acc[day]) acc[day] = 0;
+                acc[day] += trade.result;
+            }
+            return acc;
+        }, {});
+        const startDayOfWeek = (firstDayOfMonth === 0) ? 6 : firstDayOfMonth - 1;
+        for (let i = 0; i < startDayOfWeek; i++) calendarGrid.appendChild(document.createElement('div'));
+        for (let day = 1; day <= daysInMonth; day++) {
+            const dayCell = document.createElement('div');
+            dayCell.className = 'calendar-day border border-slate-200 p-2 flex flex-col';
+            const dayNumber = document.createElement('span');
+            dayNumber.textContent = day;
+            dayNumber.className = 'font-semibold text-slate-600';
+            dayCell.appendChild(dayNumber);
+            if (dailyTotals[day] !== undefined) {
+                const result = dailyTotals[day];
+                const resultEl = document.createElement('div');
+                resultEl.className = 'mt-auto text-center rounded p-1 text-sm font-bold';
+                if (result > 0) { resultEl.classList.add('bg-green-100', 'text-green-800'); resultEl.textContent = `+$${result.toFixed(2)}`; } 
+                else if (result < 0) { resultEl.classList.add('bg-red-100', 'text-red-800'); resultEl.textContent = `-$${Math.abs(result).toFixed(2)}`; } 
+                else { resultEl.classList.add('bg-slate-100', 'text-slate-800'); resultEl.textContent = `$0.00`; }
+                dayCell.appendChild(resultEl);
+            }
+            const today = new Date();
+            if (day === today.getUTCDate() && month === today.getUTCMonth() && year === today.getUTCFullYear()) dayNumber.classList.add('bg-sky-600', 'text-white', 'rounded-full', 'w-6', 'h-6', 'flex', 'items-center', 'justify-center');
+            calendarGrid.appendChild(dayCell);
+        }
     }
-
-    // ... (tradeForm submission logic)
 
     async function saveManifesto() {
         if (!currentUser) return;
